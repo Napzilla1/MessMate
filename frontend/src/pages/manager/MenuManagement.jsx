@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Copy, Save, X, Check } from 'lucide-react'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']

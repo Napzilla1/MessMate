@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 import { Download, RefreshCw, Shield, Smartphone } from 'lucide-react'
 

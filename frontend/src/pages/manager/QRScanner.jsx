@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ScanLine, CheckCircle2, XCircle, User, Clock, AlertTriangle } from 'lucide-react'
 import api from '../../api'
 import { io } from 'socket.io-client'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 
 const SCANNED_MOCK = [
   { id: 'STU032', name: 'Priya Patel', meal: 'Lunch', time: '12:41 PM', status: 'success', hostel: 'Block A' },
@@ -154,9 +154,18 @@ export default function QRScanner() {
               </div>
             )}
 
-            <button id="simulate-scan" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }} onClick={simulateScan} disabled={scanning}>
-              <ScanLine size={18} /> {scanning ? 'Scanning...' : 'Simulate Scan'}
-            </button>
+            <form onSubmit={handleScan} style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <input 
+                type="text" 
+                placeholder="Paste token here..." 
+                value={manualToken} 
+                onChange={e => setManualToken(e.target.value)}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}
+              />
+              <button type="submit" className="btn btn-primary" disabled={scanning || !manualToken.trim()}>
+                <ScanLine size={18} /> {scanning ? 'Scanning...' : 'Scan'}
+              </button>
+            </form>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 10 }}>In production: uses device camera</p>
           </div>
 

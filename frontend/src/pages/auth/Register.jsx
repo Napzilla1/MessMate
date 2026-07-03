@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import api from '../../api'
 

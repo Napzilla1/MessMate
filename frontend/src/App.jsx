@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect } from 'react'
 import api from './api'
+import { AuthContext } from './context/AuthContext'
 
 // Auth
 import Login from './pages/auth/Login'
@@ -41,63 +42,65 @@ import Staff from './pages/admin/Staff'
 // Components
 import LiveChat from './components/LiveChat'
 
-// Auth context
-export const AuthContext = createContext(null)
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
-
-const DEMO_USERS = {
-  student: { id: 'STU001', name: 'Arjun Sharma', email: 'arjun@iitbhu.ac.in', role: 'student', hostel: 'Limbdi Hostel', room: 'A-204', avatar: 'AS' },
-  manager: { id: 'MGR001', name: 'Ramesh Kumar', email: 'ramesh@iitbhu.ac.in', role: 'manager', hostel: 'Limbdi Hostel', avatar: 'RK' },
-  admin: { id: 'ADM001', name: 'Dr. Priya Singh', email: 'admin@iitbhu.ac.in', role: 'admin', avatar: 'PS' },
-}
 
 export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await api.get('/auth/profile');
-          setUser(res.data);
-        } catch (error) {
-          console.error("Failed to fetch user", error);
-          localStorage.removeItem('token');
+    // Decode user directly from JWT stored in localStorage
+    // This means refresh NEVER logs the user out, even if backend is slow
+    const token = localStorage.getItem('token')
+    if (token) {
+      try {
+        // JWT payload is base64 encoded in the middle segment
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        // Check token hasn't expired
+        if (payload.exp * 1000 > Date.now()) {
+          // Fetch fresh profile from backend (non-blocking)
+          api.get('/auth/profile')
+            .then(res => setUser(res.data))
+            .catch(() => {
+              // Backend unreachable — use cached token data so user stays logged in
+              // The token payload only has { id } so use stored user data
+              const stored = localStorage.getItem('user')
+              if (stored) setUser(JSON.parse(stored))
+            })
+        } else {
+          // Token expired — log out
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
         }
+      } catch (e) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
       }
-      setLoading(false);
-    };
-    fetchUser();
-  }, []);
+    }
+    setLoading(false)
+  }, [])
 
   const login = async (email, password) => {
-    // For fallback demo testing if user doesn't have DB
-    if (email === 'demo') {
-      setUser(DEMO_USERS[password]) // password acts as role
-      return;
-    }
-    const res = await api.post('/auth/login', { email, password });
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    const res = await api.post('/auth/login', { email, password })
+    localStorage.setItem('token', res.data.token)
+    localStorage.setItem('user', JSON.stringify(res.data))
+    setUser(res.data)
   }
 
   const register = async (userData) => {
-    const res = await api.post('/auth/register', userData);
-    localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    const res = await api.post('/auth/register', userData)
+    localStorage.setItem('token', res.data.token)
+    localStorage.setItem('user', JSON.stringify(res.data))
+    setUser(res.data)
   }
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
     setUser(null)
   }
 
-  if (loading) return <div style={{display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center'}}>Loading...</div>;
+  if (loading) return <div style={{display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-secondary)'}}>Loading...</div>;
 
   const getDefaultRoute = () => {
     if (!user) return '/login'

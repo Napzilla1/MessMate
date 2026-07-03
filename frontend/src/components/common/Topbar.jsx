@@ -1,5 +1,5 @@
 import { Bell, Search, Moon, Wifi } from 'lucide-react'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import { useState } from 'react'
 
 const PAGE_TITLES = {

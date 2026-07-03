@@ -1,20 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Download, Search, Filter, Users, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
-import { useAuth } from '../../App'
+import { Download, Search, Filter, Users, CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
-
-const MOCK_ATTENDANCE = [
-  { id: 'STU001', name: 'Arjun Sharma', hostel: 'Block A', room: 'A-204', declared: true, checkedIn: true, meal: 'Lunch', status: 'present' },
-  { id: 'STU002', name: 'Priya Patel', hostel: 'Block A', room: 'A-101', declared: true, checkedIn: true, meal: 'Lunch', status: 'present' },
-  { id: 'STU003', name: 'Rahul Singh', hostel: 'Block B', room: 'B-305', declared: true, checkedIn: false, meal: 'Lunch', status: 'absent' },
-  { id: 'STU004', name: 'Anita Kumar', hostel: 'Block B', room: 'B-201', declared: false, checkedIn: false, meal: '', status: 'pending' },
-  { id: 'STU005', name: 'Mohit Sharma', hostel: 'Block C', room: 'C-408', declared: true, checkedIn: true, meal: 'Lunch', status: 'present' },
-  { id: 'STU006', name: 'Deepa Nair', hostel: 'Block A', room: 'A-302', declared: false, checkedIn: false, meal: '', status: 'pending' },
-  { id: 'STU007', name: 'Arun Verma', hostel: 'Block C', room: 'C-110', declared: true, checkedIn: false, meal: 'Lunch', status: 'absent' },
-  { id: 'STU008', name: 'Sunita Rao', hostel: 'Block B', room: 'B-403', declared: true, checkedIn: true, meal: 'Lunch', status: 'present' },
-  { id: 'STU009', name: 'Kiran Das', hostel: 'Block A', room: 'A-205', declared: true, checkedIn: true, meal: 'Lunch', status: 'present' },
-  { id: 'STU010', name: 'Amit Joshi', hostel: 'Block C', room: 'C-207', declared: false, checkedIn: false, meal: '', status: 'pending' },
-]
+import { io } from 'socket.io-client'
 
 export default function AttendanceMonitor() {
   const { user } = useAuth()
@@ -23,127 +11,177 @@ export default function AttendanceMonitor() {
   const [activeMeal, setActiveMeal] = useState('lunch')
   const [attendance, setAttendance] = useState([])
   const [loading, setLoading] = useState(true)
-  
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+
   const MEAL_COLORS = { breakfast: 'var(--accent-amber)', lunch: 'var(--accent-teal)', dinner: 'var(--accent-purple)' }
+  const hostel = user?.hostel || 'Limbdi Hostel'
+
+  const fetchAttendance = async () => {
+    setLoading(true)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const res = await api.get(`/attendance/hostel/${encodeURIComponent(hostel)}?date=${today}`)
+      const records = res.data || []
+
+      const mapped = records.map(a => ({
+        id: a.student?.rollNo || a.student?._id?.toString().slice(-6) || 'N/A',
+        name: a.student?.name || 'Unknown Student',
+        room: a.student?.room || '—',
+        hostel: a.hostel,
+        declared: a[activeMeal]?.declared || false,
+        checkedIn: a[activeMeal]?.checkedIn || false,
+        checkInTime: a[activeMeal]?.checkInTime,
+        status: a[activeMeal]?.checkedIn ? 'present' : a[activeMeal]?.declared ? 'absent' : 'pending',
+        meal: activeMeal,
+      }))
+      setAttendance(mapped)
+      setLastRefresh(new Date())
+    } catch (err) {
+      console.error('Failed to fetch attendance', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        const res = await api.get(`/attendance/hostel/${user?.hostel || 'Limbdi Hostel'}?date=${new Date().toISOString().split('T')[0]}`)
-        if (res.data && res.data.length > 0) {
-          const mapped = res.data.map(a => ({
-            id: a.student?.rollNo || a.student?._id || 'Unknown',
-            name: a.student?.name || 'Unknown Student',
-            room: a.student?.room || 'Unknown Room',
-            status: a.status === 'success' ? 'present' : a.status === 'not-going' ? 'absent' : 'pending',
-            meal: a.meal || 'lunch',
-            declared: a.status !== 'not-going'
-          }))
-          setAttendance(mapped)
-        } else {
-          setAttendance(MOCK_ATTENDANCE)
-        }
-      } catch (err) {
-        console.error("Failed to fetch attendance logs", err)
-        setAttendance(MOCK_ATTENDANCE)
-      } finally {
-        setLoading(false)
-      }
-    }
     fetchAttendance()
-  }, [user])
+  }, [activeMeal, user])
+
+  // Socket.io: update live when scan comes in
+  useEffect(() => {
+    const socket = io('http://localhost:5000')
+    socket.emit('join_hostel_room', hostel)
+    socket.on('scan_success', (data) => {
+      if (data.meal === activeMeal) {
+        setAttendance(prev => prev.map(s =>
+          (s.id === data.studentId?.toString().slice(-6) || s.name === data.studentName)
+            ? { ...s, checkedIn: true, status: 'present', checkInTime: new Date().toISOString() }
+            : s
+        ))
+        setLastRefresh(new Date())
+      }
+    })
+    return () => socket.disconnect()
+  }, [activeMeal, hostel])
 
   const filtered = attendance.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.id.toLowerCase().includes(search.toLowerCase())
-    if (filterStatus === 'declared') return matchSearch && s.declared
-    if (filterStatus === 'checkedIn') return matchSearch && s.status === 'present'
-    if (filterStatus === 'absent') return matchSearch && s.status === 'absent'
-    if (filterStatus === 'notDeclared') return matchSearch && !s.declared
-    return matchSearch
+    const matchFilter = filterStatus === 'all' || s.status === filterStatus
+    return matchSearch && matchFilter
   })
 
-  const checkedIn = MOCK_STUDENTS.filter(s => s.checkedIn).length
-  const absent = MOCK_STUDENTS.filter(s => s.declared && !s.checkedIn).length
+  const present = attendance.filter(s => s.status === 'present').length
+  const absent = attendance.filter(s => s.status === 'absent').length
+  const pending = attendance.filter(s => s.status === 'pending').length
+
+  const StatusBadge = ({ status }) => {
+    if (status === 'present') return <span className="badge badge-emerald"><CheckCircle2 size={11} /> Present</span>
+    if (status === 'absent') return <span className="badge badge-rose"><XCircle size={11} /> Absent</span>
+    return <span className="badge badge-amber"><AlertCircle size={11} /> Not Declared</span>
+  }
 
   return (
     <div>
       <div className="page-header">
-        <div><h1>Attendance Monitor</h1><p>Track expected vs actual meal attendance</p></div>
-        <button className="btn btn-secondary"><Download size={15}/> Export CSV</button>
+        <div>
+          <h1>Attendance Monitor</h1>
+          <p>Live data from MongoDB · Last updated {lastRefresh.toLocaleTimeString('en-IN')}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={fetchAttendance}>
+            <RefreshCw size={15} /> Refresh
+          </button>
+          <button className="btn btn-primary"><Download size={15} /> Export</button>
+        </div>
       </div>
 
-      {/* Summary */}
+      {/* Meal selector */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        {['breakfast', 'lunch', 'dinner'].map(m => (
+          <button key={m} id={`attn-meal-${m}`}
+            className={`btn ${activeMeal === m ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveMeal(m)}
+            style={activeMeal === m ? { background: `linear-gradient(135deg, ${MEAL_COLORS[m]}, ${MEAL_COLORS[m]}cc)` } : {}}
+          >
+            {m === 'breakfast' ? '🌅' : m === 'lunch' ? '☀️' : '🌙'} {m.charAt(0).toUpperCase() + m.slice(1)}
+          </button>
+        ))}
+        <span className="live-badge" style={{ marginLeft: 'auto', alignSelf: 'center' }}>
+          <span className="live-dot" /> Live
+        </span>
+      </div>
+
+      {/* Summary stats */}
       <div className="grid-4 mb-24">
         {[
-          { label: 'Total Students', value: MOCK_STUDENTS.length, color: 'var(--text-primary)', icon: '👥' },
-          { label: 'Declared', value: declared, color: 'var(--accent-teal)', icon: '📋' },
-          { label: 'Checked In', value: checkedIn, color: 'var(--accent-emerald)', icon: '✅' },
-          { label: 'No-Show', value: absent, color: 'var(--accent-rose)', icon: '⚠️' },
+          { label: 'Total Students', value: attendance.length, icon: <Users size={18} />, color: 'var(--text-primary)' },
+          { label: 'Present', value: present, icon: <CheckCircle2 size={18} />, color: 'var(--accent-emerald)' },
+          { label: 'Declared Absent', value: absent, icon: <XCircle size={18} />, color: 'var(--accent-rose)' },
+          { label: 'Not Declared', value: pending, icon: <AlertCircle size={18} />, color: 'var(--accent-amber)' },
         ].map((s, i) => (
           <div key={i} className="stat-card">
-            <div style={{ fontSize: '1.5rem', marginBottom: 10 }}>{s.icon}</div>
+            <div style={{ color: s.color, marginBottom: 10 }}>{s.icon}</div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
             <div className="stat-label">{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Meal tabs */}
-      <div className="tabs mb-24" style={{ maxWidth: 360 }}>
-        {['breakfast', 'lunch', 'dinner'].map(m => (
-          <button key={m} id={`attn-mon-${m}`} className={`tab-btn ${activeMeal === m ? 'active' : ''}`}
-            onClick={() => setActiveMeal(m)}
-            style={activeMeal === m ? { background: `linear-gradient(135deg, ${MEAL_COLORS[m]}, ${MEAL_COLORS[m]}cc)` } : {}}>
-            {m.charAt(0).toUpperCase() + m.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Search + Filter */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input id="attn-search" className="form-input" placeholder="Search by name or ID..." value={search} onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 38 }} />
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {[['all', 'All'], ['declared', 'Declared'], ['checkedIn', 'Checked In'], ['absent', 'No-Show'], ['notDeclared', 'Not Declared']].map(([val, label]) => (
-            <button key={val} id={`filter-${val}`} onClick={() => setFilterStatus(val)} className={`btn btn-sm ${filterStatus === val ? 'btn-primary' : 'btn-secondary'}`}>{label}</button>
+      {/* Search & Filter */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <Search size={15} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text" className="form-input"
+              placeholder="Search by name or ID..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              style={{ paddingLeft: 40, background: 'var(--bg-app)' }}
+            />
+          </div>
+          {['all', 'present', 'absent', 'pending'].map(f => (
+            <button key={f}
+              className={`btn btn-sm ${filterStatus === f ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setFilterStatus(f)}
+              style={{ textTransform: 'capitalize' }}
+            >{f}</button>
           ))}
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="table-container">
-        <table>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr><th>Student</th><th>ID</th><th>Hostel</th><th>Room</th><th>Declared</th><th>Checked In</th><th>Status</th></tr>
+            <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>Student</th>
+              <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>ID / Room</th>
+              <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>Status</th>
+              <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>Check-in Time</th>
+            </tr>
           </thead>
           <tbody>
-            {filtered.map((s, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{s.name}</td>
-                <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{s.id}</td>
-                <td>{s.hostel}</td>
-                <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.room}</td>
-                <td>
-                  {s.declared ? <span className="badge badge-teal"><CheckCircle2 size={11}/> Yes</span>
-                    : <span className="badge badge-rose"><XCircle size={11}/> No</span>}
-                </td>
-                <td>
-                  {s.checkedIn ? <span className="badge badge-emerald"><CheckCircle2 size={11}/> Yes</span>
-                    : <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>—</span>}
-                </td>
-                <td>
-                  {s.checkedIn ? (
-                    <span className="badge badge-emerald">✓ Present</span>
-                  ) : s.declared ? (
-                    <span className="badge badge-rose"><AlertCircle size={11}/> No-Show</span>
-                  ) : (
-                    <span className="badge" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid var(--border)', fontSize: '0.72rem' }}>Not Declared</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {loading ? (
+              <tr><td colSpan="4" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading live data...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan="4" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                {attendance.length === 0 ? 'No attendance declarations found for today' : 'No results match your filter'}
+              </td></tr>
+            ) : (
+              filtered.map((s, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '14px 20px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{s.name}</div>
+                  </td>
+                  <td style={{ padding: '14px 20px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    {s.id} · {s.room}
+                  </td>
+                  <td style={{ padding: '14px 20px' }}><StatusBadge status={s.status} /></td>
+                  <td style={{ padding: '14px 20px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    {s.checkInTime
+                      ? new Date(s.checkInTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                      : '—'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

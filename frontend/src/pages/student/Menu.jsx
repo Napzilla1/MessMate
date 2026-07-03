@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 
 const FULL_MENU = {

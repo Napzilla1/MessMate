@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../App'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { Eye, EyeOff, ArrowRight, GraduationCap, ChefHat, Shield } from 'lucide-react'
 
 const ROLES = [
@@ -11,7 +11,6 @@ const ROLES = [
 
 export default function Login() {
   const { login } = useAuth()
-  const navigate = useNavigate()
   const [selectedRole, setSelectedRole] = useState('student')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

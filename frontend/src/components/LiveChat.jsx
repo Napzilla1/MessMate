@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageSquare, X, Send, User, Shield } from 'lucide-react'
+import { MessageSquare, X, Send, Shield } from 'lucide-react'
 import { io } from 'socket.io-client'
 import api from '../api'
-import { useAuth } from '../App'
+import { useAuth } from '../context/AuthContext'
 
 export default function LiveChat() {
   const { user } = useAuth()
@@ -13,18 +13,14 @@ export default function LiveChat() {
   const [unread, setUnread] = useState(0)
   const messagesEndRef = useRef(null)
 
-  // Only render for authenticated users with a hostel
-  if (!user || !user.hostel) return null;
-
+  // All hooks MUST be called before any conditional return
   useEffect(() => {
-    // Connect to socket
+    if (!user?.hostel) return  // guard INSIDE effect, not before it
+
     const newSocket = io('http://localhost:5000')
     setSocket(newSocket)
-
-    // Join room for this hostel
     newSocket.emit('join_hostel_room', user.hostel)
 
-    // Fetch history
     const fetchHistory = async () => {
       try {
         const res = await api.get(`/chat/${user.hostel}`)
@@ -35,27 +31,25 @@ export default function LiveChat() {
     }
     fetchHistory()
 
-    // Listen for incoming messages
     newSocket.on('receive_message', (msg) => {
       setMessages(prev => [...prev, msg])
-      if (!isOpen) {
-        setUnread(u => u + 1)
-      }
+      setUnread(u => u + 1)
     })
 
     return () => newSocket.disconnect()
-  }, [user.hostel])
+  }, [user?.hostel])
 
-  // Mark read when opened
   useEffect(() => {
     if (isOpen) setUnread(0)
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [isOpen, messages])
 
+  // Conditional render AFTER all hooks
+  if (!user || !user.hostel) return null
+
   const handleSend = (e) => {
     e.preventDefault()
     if (!input.trim() || !socket) return
-    
     socket.emit('send_message', {
       hostel: user.hostel,
       senderId: user.id || user._id,
@@ -63,7 +57,6 @@ export default function LiveChat() {
       senderRole: user.role,
       text: input
     })
-    
     setInput('')
   }
 
@@ -71,7 +64,7 @@ export default function LiveChat() {
     <>
       {/* Floating Button */}
       {!isOpen && (
-        <button 
+        <button
           onClick={() => setIsOpen(true)}
           style={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 999,
@@ -134,7 +127,9 @@ export default function LiveChat() {
               </div>
             ) : (
               messages.map((msg, i) => {
-                const isMe = msg.sender === (user.id || user._id)
+                const isMe = msg.sender === (user.id || user._id) ||
+                             msg.sender?._id === (user.id || user._id) ||
+                             msg.sender?.toString() === (user.id || user._id)?.toString()
                 const isManager = msg.senderRole === 'manager' || msg.senderRole === 'admin'
                 return (
                   <div key={msg._id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>

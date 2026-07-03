@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, TrendingDown, Save, AlertTriangle } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { useAuth } from '../../App'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 
 const HISTORY = [
