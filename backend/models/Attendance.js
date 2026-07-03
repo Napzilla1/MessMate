@@ -5,17 +5,17 @@ const AttendanceSchema = new mongoose.Schema({
   hostel: { type: String, required: true },
   date: { type: String, required: true }, // Format: YYYY-MM-DD
   breakfast: {
-    declared: { type: Boolean, default: true },
+    declared: { type: Boolean, default: false },
     checkedIn: { type: Boolean, default: false },
     checkInTime: { type: Date }
   },
   lunch: {
-    declared: { type: Boolean, default: true },
+    declared: { type: Boolean, default: false },
     checkedIn: { type: Boolean, default: false },
     checkInTime: { type: Date }
   },
   dinner: {
-    declared: { type: Boolean, default: true },
+    declared: { type: Boolean, default: false },
     checkedIn: { type: Boolean, default: false },
     checkInTime: { type: Date }
   }

@@ -1,16 +1,52 @@
-# React + Vite
+# MessMate - Mess Management System
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Overview
+MessMate is a comprehensive full-stack **Mess Management System** designed to streamline and handle various aspects of hostel dining, including menu management, attendance tracking, waste monitoring, real-time chat, and AI-based features.
 
-Currently, two official plugins are available:
+## Tech Stack
+### Frontend
+- **Framework**: React 19 + Vite
+- **State Management**: Redux Toolkit
+- **Routing**: React Router DOM v7
+- **Styling**: Framer Motion, Lucide React, Custom CSS
+- **Data Fetching**: Axios
+- **Real-time Communication**: Socket.io-client
+- **Visualization**: Recharts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Backend
+- **Runtime**: Node.js + Express.js
+- **Database**: MongoDB (via Mongoose)
+- **Real-time Chat**: Socket.IO
+- **Security**: JWT Authentication, Bcrypt.js password hashing
 
-## React Compiler
+## Core Features
+- 🔐 **Authentication & Authorization**: Secure login for staff and students.
+- 📅 **Menu Management**: Daily and weekly mess menu planning.
+- 📲 **Attendance Tracking**: Monitor student attendance at meals with QR support.
+- ♻️ **Waste Management**: Track and minimize food waste.
+- 🏢 **Hostel Management**: Dedicated spaces for managing multiple hostels.
+- 💬 **Real-time Chat**: Hostel-specific live chat rooms using WebSockets.
+- 🤖 **AI Integrations**: Smart suggestions and analytics.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting Started
 
-## Expanding the Oxlint configuration
+### Prerequisites
+- Node.js installed
+- MongoDB instance running
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### Installation
+
+1. **Backend Setup:**
+   ```bash
+   cd backend
+   npm install
+   # Create a .env file with PORT, MONGO_URI, and JWT_SECRET
+   npm run dev
+   ```
+
+2. **Frontend Setup:**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
