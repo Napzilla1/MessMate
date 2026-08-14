@@ -16,8 +16,19 @@ router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, hostel, room, rollNo } = req.body;
     
+    // Domain validation
+    if (!email.endsWith('@iitbhu.ac.in')) {
+      return res.status(400).json({ message: 'Email must belong to the @iitbhu.ac.in domain' });
+    }
+    
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
+
+    // Roll number uniqueness validation
+    if (rollNo) {
+      const rollExists = await User.findOne({ rollNo });
+      if (rollExists) return res.status(400).json({ message: 'Roll number is already registered' });
+    }
 
     const user = await User.create({ name, email, password, role, hostel, room, rollNo });
 

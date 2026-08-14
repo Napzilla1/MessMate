@@ -8,7 +8,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, enum: ['student', 'manager', 'admin'], default: 'student' },
   hostel: { type: String },
   room: { type: String },
-  rollNo: { type: String },
+  rollNo: { type: String, unique: true, sparse: true },
   avatar: { type: String, default: 'U' },
   resetPasswordToken: String,
   resetPasswordExpire: Date
