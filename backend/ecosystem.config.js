@@ -1,18 +1,53 @@
+/**
+ * PM2 Ecosystem Configuration — Multi-Port for Nginx Load Balancing
+ *
+ * Instead of using PM2's built-in cluster mode on a single port,
+ * we launch 3 separate instances on ports 5001, 5002, and 5003.
+ * Nginx distributes incoming traffic across these ports using
+ * ip_hash for sticky session support (important for WebSockets).
+ *
+ * The Redis adapter still syncs Socket.IO rooms across all instances.
+ */
 module.exports = {
   apps: [
     {
-      name: 'mess-api',
+      name: 'mess-api-1',
       script: 'server.js',
-      instances: 'max',       // One process per CPU core
-      exec_mode: 'cluster',   // Cluster mode for multi-process
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
+        PORT: 5001,
       },
-      env_file: '.env',       // Reads from .env automatically
+      env_file: '.env',
       watch: false,
       max_memory_restart: '500M',
-      // With Redis adapter in place, sticky sessions are NOT needed.
-      // All Socket.io rooms are synced via Redis pub/sub.
+    },
+    {
+      name: 'mess-api-2',
+      script: 'server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 5002,
+      },
+      env_file: '.env',
+      watch: false,
+      max_memory_restart: '500M',
+    },
+    {
+      name: 'mess-api-3',
+      script: 'server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 5003,
+      },
+      env_file: '.env',
+      watch: false,
+      max_memory_restart: '500M',
     },
   ],
 };

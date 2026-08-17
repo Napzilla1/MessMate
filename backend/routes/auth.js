@@ -102,8 +102,69 @@ router.get('/users', protect, async (req, res) => {
   }
 });
 
+const { OAuth2Client } = require('google-auth-library');
+const sendEmail = require('../utils/sendEmail');
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'dummy-client-id');
+
+// @route   POST /api/auth/google
+// @desc    Google OAuth2 login/registration
+// @access  Public
+router.post('/google', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    
+    // Verify token
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
+    });
+    
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const name = payload.name;
+    const googleId = payload.sub;
+
+    if (!email.endsWith('@iitbhu.ac.in')) {
+      return res.status(400).json({ message: 'Email must belong to the @iitbhu.ac.in domain' });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create user if not exists
+      user = await User.create({
+        name,
+        email,
+        googleId,
+        role: 'student', // default
+      });
+    } else if (!user.googleId) {
+      // Link google account to existing email
+      user.googleId = googleId;
+      await user.save();
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      hostel: user.hostel,
+      room: user.room,
+      rollNo: user.rollNo,
+      avatar: user.avatar,
+      token: generateToken(user._id)
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(401).json({ message: 'Invalid Google token' });
+  }
+});
+
 // @route   POST /api/auth/forgotpassword
-// @desc    Forgot password
+// @desc    Forgot password (OTP)
 // @access  Public
 router.post('/forgotpassword', async (req, res) => {
   try {
@@ -112,47 +173,61 @@ router.post('/forgotpassword', async (req, res) => {
       return res.status(404).json({ message: 'There is no user with that email' });
     }
 
-    // Get reset token
-    const resetToken = user.getResetPasswordToken();
+    // Get reset OTP
+    const otp = user.getResetPasswordOtp();
     await user.save({ validateBeforeSave: false });
 
-    // Create reset url
-    const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+    const message = `Your password reset OTP is: ${otp}\nIt is valid for 10 minutes.`;
 
-    // For now, we just log it to the console (Mock Email)
-    console.log(`\n\n--------------------------------------\nPassword Reset URL for ${user.email}:\n${resetUrl}\n--------------------------------------\n\n`);
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'Password Reset OTP',
+        message,
+      });
 
-    res.status(200).json({ message: 'Email sent' });
+      res.status(200).json({ message: 'OTP sent to email' });
+    } catch (err) {
+      user.resetPasswordOtp = undefined;
+      user.resetPasswordOtpExpire = undefined;
+      await user.save({ validateBeforeSave: false });
+      
+      console.error(err);
+      return res.status(500).json({ message: 'Email could not be sent' });
+    }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Email could not be sent' });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// @route   PUT /api/auth/resetpassword/:resettoken
-// @desc    Reset password
+// @route   PUT /api/auth/resetpassword
+// @desc    Reset password using OTP
 // @access  Public
-router.put('/resetpassword/:resettoken', async (req, res) => {
+router.put('/resetpassword', async (req, res) => {
   try {
-    // Get hashed token
-    const resetPasswordToken = crypto
+    const { email, otp, newPassword } = req.body;
+    
+    // Hash the entered OTP to compare with DB
+    const resetPasswordOtp = crypto
       .createHash('sha256')
-      .update(req.params.resettoken)
+      .update(otp)
       .digest('hex');
 
     const user = await User.findOne({
-      resetPasswordToken,
-      resetPasswordExpire: { $gt: Date.now() }
+      email,
+      resetPasswordOtp,
+      resetPasswordOtpExpire: { $gt: Date.now() }
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired token' });
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
     // Set new password
-    user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    user.password = newPassword;
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordOtpExpire = undefined;
     await user.save();
 
     res.status(200).json({ message: 'Password reset successful' });

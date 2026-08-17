@@ -16,7 +16,7 @@ const socketIo = require('socket.io');
 const Redis = require('ioredis');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const createRateLimiter = require('./middleware/rateLimiter');
-const createChatQueue = require('./queues/chatQueue');
+const { enqueueChatMessage } = require('./queues/chatQueue');
 
 const app = express();
 const server = http.createServer(app);
@@ -48,12 +48,6 @@ console.log('[Socket.io] Redis adapter attached — multi-process ready');
 
 // ─── Rate Limiter ──────────────────────────────────────────────
 const { checkRateLimit, cleanup: cleanupRateLimit } = createRateLimiter(redisClient);
-
-// ─── Chat Persistence Queue ────────────────────────────────────
-const { enqueue: enqueueChatMessage } = createChatQueue({
-  host: new URL(redisUrl).hostname || '127.0.0.1',
-  port: parseInt(new URL(redisUrl).port || '6379', 10),
-});
 
 // ─── Read Receipt Worker Thread ────────────────────────────────
 const readReceiptWorker = new Worker(
@@ -110,8 +104,7 @@ io.on('connection', (socket) => {
       };
       io.to(hostel).emit('receive_message', optimisticMessage);
 
-      // ── Async Persistence via Bull Queue ──
-      // MongoDB write happens in the background with automatic retries
+      // ── Async Persistence via BullMQ ──
       await enqueueChatMessage({
         hostel,
         sender: senderId,
