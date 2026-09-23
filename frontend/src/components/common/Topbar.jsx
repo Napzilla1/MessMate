@@ -15,7 +15,7 @@ const PAGE_TITLES = {
   '/manager/waste': { title: 'Food Waste Log', sub: 'Record daily food preparation data' },
   '/manager/menu': { title: 'Menu Management', sub: 'Create and edit weekly meal plans' },
   '/manager/reports': { title: 'Reports', sub: 'Download analytics and summaries' },
-  '/manager/ai': { title: 'AI Insights', sub: 'Smart forecasting and recommendations' },
+  '/manager/forecast': { title: 'Forecasting & Analytics', sub: 'Smart forecasting and recommendations' },
   '/admin/dashboard': { title: 'Admin Dashboard', sub: 'System-wide overview' },
   '/admin/hostels': { title: 'Hostel Management', sub: 'Manage all hostels' },
   '/admin/students': { title: 'Student Management', sub: 'Manage student accounts' },
@@ -100,3 +100,5 @@ export default function Topbar() {
     </header>
   )
 }
+
+

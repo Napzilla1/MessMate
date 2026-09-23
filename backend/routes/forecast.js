@@ -4,7 +4,7 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 const { protect, manager } = require('../middleware/auth');
 
-// @route   POST /api/ai/chat
+// @route   POST /api/forecast/chat
 // @desc    Get AI-driven insights based on database metrics
 // @access  Private/Manager
 router.post('/chat', protect, manager, async (req, res) => {
@@ -18,12 +18,13 @@ router.post('/chat', protect, manager, async (req, res) => {
 
     // Spawn a worker thread so the main event loop is never blocked
     const worker = new Worker(
-      path.join(__dirname, '..', 'workers', 'aiWorker.js'),
+      path.join(__dirname, '..', 'workers', 'forecastWorker.js'),
       {
         workerData: {
           message,
           hostel,
           mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mess-management',
+          geminiApiKey: process.env.GEMINI_API_KEY,
         },
       }
     );
@@ -37,13 +38,15 @@ router.post('/chat', protect, manager, async (req, res) => {
     });
 
     worker.on('error', (err) => {
-      console.error('[AI Worker] Error:', err);
-      res.status(500).json({ message: 'AI processing failed: ' + err.message });
+      console.error('[Forecast Worker] Error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Forecast processing failed: ' + err.message });
+      }
     });
 
     worker.on('exit', (code) => {
       if (code !== 0 && !res.headersSent) {
-        res.status(500).json({ message: `AI worker exited with code ${code}` });
+        res.status(500).json({ message: `Forecast worker exited with code ${code}` });
       }
     });
 
@@ -53,3 +56,4 @@ router.post('/chat', protect, manager, async (req, res) => {
 });
 
 module.exports = router;
+

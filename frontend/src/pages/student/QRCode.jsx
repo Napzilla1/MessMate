@@ -84,6 +84,16 @@ export default function StudentQR() {
               <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>
             )}
           </div>
+          <div style={{ marginTop: '12px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <p style={{ marginBottom: '4px' }}>Dev Test Token (copy this to test scanner):</p>
+            <input 
+              type="text" 
+              readOnly 
+              value={ticketToken} 
+              onClick={(e) => { e.target.select(); navigator.clipboard.writeText(ticketToken); alert('Token copied!'); }}
+              style={{ width: '100%', padding: '6px', background: 'var(--bg-app)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}
+            />
+          </div>
 
           {/* Info */}
           <div style={{ textAlign: 'center' }}>

@@ -1,58 +1,55 @@
-const Redis = require('ioredis');
-
 /**
- * Rate limiter using Redis sorted sets.
- * Tracks message timestamps per socket ID to enforce rate limits.
- * All config is dynamic from environment variables.
+ * Redis Sliding-Window Rate Limiter (Express Middleware)
+ * 
+ * Uses Redis Sorted Sets to track request timestamps per IP + route.
+ * Protects authentication endpoints against brute-force attacks.
+ * 
+ * Usage: router.post('/login', rateLimiter(10, 60), handler)
+ *   → Max 10 requests per 60 seconds per IP
  */
-const createRateLimiter = (redisClient) => {
-  const windowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '5000', 10);
-  const maxMessages = parseInt(process.env.RATE_LIMIT_MAX_MESSAGES || '10', 10);
+const createRateLimiter = (maxAttempts, windowSecs) => {
+  return async (req, res, next) => {
+    const redisClient = req.app.get('redisClient');
 
-  /**
-   * Check if a socket is allowed to send a message.
-   * @param {string} socketId - The socket ID to check
-   * @returns {{ allowed: boolean, retryAfter: number }} 
-   */
-  const checkRateLimit = async (socketId) => {
-    const key = `rate:${socketId}`;
-    const now = Date.now();
-    const windowStart = now - windowMs;
+    // If Redis is not available, skip rate limiting
+    if (!redisClient) return next();
 
-    // Remove expired entries
-    await redisClient.zremrangebyscore(key, 0, windowStart);
+    try {
+      const key = `rate:${req.ip}:${req.path}`;
+      const now = Date.now();
+      const windowMs = windowSecs * 1000;
+      const windowStart = now - windowMs;
 
-    // Count messages in the current window
-    const count = await redisClient.zcount(key, windowStart, now);
+      // Remove expired entries outside the window
+      await redisClient.zremrangebyscore(key, 0, windowStart);
 
-    if (count >= maxMessages) {
-      // Calculate when the oldest message in the window expires
-      const oldest = await redisClient.zrangebyscore(key, windowStart, now, 'LIMIT', 0, 1);
-      const retryAfter = oldest.length > 0 
-        ? Math.ceil((parseInt(oldest[0], 10) + windowMs - now) / 1000) 
-        : Math.ceil(windowMs / 1000);
+      // Count requests in the current window
+      const count = await redisClient.zcount(key, windowStart, now);
 
-      return { allowed: false, retryAfter };
+      if (count >= maxAttempts) {
+        // Calculate exact retry-after from the oldest entry
+        const oldest = await redisClient.zrangebyscore(key, windowStart, now, 'LIMIT', 0, 1);
+        const retryAfter = oldest.length > 0
+          ? Math.ceil((parseInt(oldest[0], 10) + windowMs - now) / 1000)
+          : Math.ceil(windowMs / 1000);
+
+        return res.status(429).json({
+          message: `Too many attempts. Try again in ${retryAfter}s.`,
+          retryAfter,
+        });
+      }
+
+      // Record this request
+      await redisClient.zadd(key, now, `${now}:${Math.random()}`);
+      await redisClient.expire(key, windowSecs + 1);
+
+      next();
+    } catch (err) {
+      // If Redis errors, don't block the request
+      console.error('[RateLimiter] Redis error:', err.message);
+      next();
     }
-
-    // Add the current timestamp as both score and member
-    await redisClient.zadd(key, now, `${now}`);
-    
-    // Set expiry on the key so it auto-cleans if socket disconnects
-    await redisClient.expire(key, Math.ceil(windowMs / 1000) + 1);
-
-    return { allowed: true, retryAfter: 0 };
   };
-
-  /**
-   * Clean up rate limit data for a disconnected socket.
-   * @param {string} socketId
-   */
-  const cleanup = async (socketId) => {
-    await redisClient.del(`rate:${socketId}`);
-  };
-
-  return { checkRateLimit, cleanup };
 };
 
 module.exports = createRateLimiter;

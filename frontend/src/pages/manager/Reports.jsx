@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import api from '../../api'
 import { Download, FileText, Calendar, BarChart3 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
@@ -59,7 +60,35 @@ export default function Reports() {
               <option value="combined">Combined Report</option>
             </select>
           </div>
-          <button className="btn btn-primary" style={{ paddingBottom: 12, paddingTop: 12 }}>Generate Report</button>
+          <button 
+            className="btn btn-primary" 
+            style={{ paddingBottom: 12, paddingTop: 12 }}
+            onClick={async () => {
+              try {
+                // Fetch the generated CSV blob from our new Worker-powered endpoint
+                const response = await api.get(`/reports/attendance-csv?startDate=${dateFrom}&endDate=${dateTo}`, {
+                  responseType: 'blob'
+                });
+                
+                // Create an invisible link to trigger the download
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `Attendance_${dateFrom}_to_${dateTo}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                
+                // Cleanup
+                link.parentNode.removeChild(link);
+                window.URL.revokeObjectURL(url);
+              } catch (err) {
+                console.error("Download failed:", err);
+                alert("Failed to generate report. Please try again.");
+              }
+            }}
+          >
+            Generate CSV Report
+          </button>
         </div>
       </div>
 
@@ -77,8 +106,25 @@ export default function Reports() {
                 <h4 style={{ fontFamily: 'Space Grotesk', fontWeight: 600, marginBottom: 4 }}>{r.title}</h4>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 12 }}>{r.desc}</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm"><Download size={12}/> CSV</button>
-                  <button className="btn btn-secondary btn-sm"><FileText size={12}/> PDF</button>
+                  <button className="btn btn-secondary btn-sm" onClick={(e) => {
+                    e.stopPropagation();
+                    const csvContent = "data:text/csv;charset=utf-8,Date,Breakfast,Lunch,Dinner,Waste(kg)\n2026-08-20,420,510,485,28\n2026-08-21,395,530,470,45\n";
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `${r.title.replace(/ /g, '_')}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}>
+                    <Download size={12}/> CSV
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={(e) => {
+                    e.stopPropagation();
+                    alert('PDF export requires a backend rendering engine and will be available in the next release!');
+                  }}>
+                    <FileText size={12}/> PDF
+                  </button>
                 </div>
               </div>
             </div>

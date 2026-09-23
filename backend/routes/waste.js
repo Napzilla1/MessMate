@@ -23,7 +23,7 @@ router.post('/', protect, manager, async (req, res) => {
     const { date, meal, preparedKg, consumedKg } = req.body;
     
     const wastedKg = Math.max(0, preparedKg - consumedKg);
-    const wastePercentage = (wastedKg / preparedKg) * 100;
+    const wastePercentage = preparedKg > 0 ? (wastedKg / preparedKg) * 100 : 0;
 
     const log = await Waste.create({
       hostel: req.user.hostel,

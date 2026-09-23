@@ -1,10 +1,8 @@
 const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
-  // Use ethereal email if no real SMTP details are provided in .env
-  let transporter;
   if (process.env.SMTP_HOST) {
-    transporter = nodemailer.createTransport({
+    const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
       auth: {
@@ -12,31 +10,24 @@ const sendEmail = async (options) => {
         pass: process.env.SMTP_PASSWORD,
       },
     });
+
+    const message = {
+      from: `${process.env.FROM_NAME || 'MessMate'} <${process.env.FROM_EMAIL || 'noreply@messmate.com'}>`,
+      to: options.email,
+      subject: options.subject,
+      text: options.message,
+    };
+
+    await transporter.sendMail(message);
   } else {
-    // Generate a test account on the fly if not configured
-    let testAccount = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: testAccount.user, // generated ethereal user
-        pass: testAccount.pass, // generated ethereal password
-      },
-    });
-  }
-
-  const message = {
-    from: `${process.env.FROM_NAME || 'MessMate'} <${process.env.FROM_EMAIL || 'noreply@messmate.com'}>`,
-    to: options.email,
-    subject: options.subject,
-    text: options.message,
-  };
-
-  const info = await transporter.sendMail(message);
-
-  if (!process.env.SMTP_HOST) {
-    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    // If no SMTP configured, log to terminal for instant testing (much faster than Ethereal)
+    console.log('\n==================================================');
+    console.log('📧 DEV MODE: MOCK EMAIL SENT');
+    console.log(`To: ${options.email}`);
+    console.log(`Subject: ${options.subject}`);
+    console.log('Message:');
+    console.log(options.message);
+    console.log('==================================================\n');
   }
 };
 

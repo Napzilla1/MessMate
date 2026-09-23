@@ -80,9 +80,9 @@ export default function ManagerDashboard() {
 
       // Fetch today's waste
       try {
-        const wasteRes = await api.get('/waste')
+        const wasteRes = await api.get('/waste/' + (user?.hostel || 'Limbdi Hostel'))
         const todayWaste = wasteRes.data.filter(w => w.date?.startsWith(today))
-        const totalWasted = todayWaste.reduce((acc, w) => acc + (w.wasted || 0), 0)
+        const totalWasted = todayWaste.reduce((acc, w) => acc + (w.wastedKg || 0), 0)
         setWasteToday(totalWasted)
       } catch (err) { /* waste optional */ }
 

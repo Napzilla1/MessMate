@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Copy, Save, X, Check } from 'lucide-react'
+import { Plus, Edit2, Trash2, Copy, Save, X, Check, Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api'
 
@@ -25,6 +25,25 @@ export default function MenuManagement() {
   const [editValue, setEditValue] = useState('')
   const [saved, setSaved] = useState({})
   const [selectedDay, setSelectedDay] = useState('Monday')
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiPreview, setAiPreview] = useState(null);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiPromptText, setAiPromptText] = useState('');
+
+  const generateAiMenu = async (prompt) => {
+    setIsGenerating(true);
+    try {
+      const res = await api.post('/gemini/menu', { prompt });
+      if (res.data && res.data.data) {
+        setAiPreview(res.data.data);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate menu');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -84,9 +103,83 @@ export default function MenuManagement() {
 
   return (
     <div>
+      {/* AI Prompt Input Modal */}
+      {showAiPrompt && !isGenerating && !aiPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out' }}>
+          <div className="card" style={{ width: '90%', maxWidth: 500, position: 'relative', border: '1px solid rgba(20,184,166,0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', background: 'linear-gradient(135deg, var(--bg-card), rgba(20,184,166,0.05))' }}>
+            <button onClick={() => setShowAiPrompt(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20}/></button>
+            <h3 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.2rem', fontFamily: 'Space Grotesk', fontWeight: 600 }}>
+              <div style={{ padding: 8, background: 'rgba(20,184,166,0.1)', borderRadius: 10 }}><Sparkles size={20} color="var(--accent-teal)" /></div>
+              Ask Gemini AI
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: '0.9rem', lineHeight: 1.5 }}>
+              Describe the type of 7-day menu you want. Gemini will generate a nutritionally balanced plan for your review.
+            </p>
+            <textarea
+              className="input-field"
+              autoFocus
+              rows={4}
+              placeholder="e.g. Healthy North Indian with a special Friday dinner and light Sunday breakfast..."
+              value={aiPromptText}
+              onChange={e => setAiPromptText(e.target.value)}
+              style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', resize: 'none', marginBottom: 20 }}
+            />
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowAiPrompt(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { setShowAiPrompt(false); generateAiMenu(aiPromptText); }} disabled={!aiPromptText.trim()}>
+                Generate Menu <Sparkles size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Preview Modal */}
+      {aiPreview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: '90%', maxWidth: 900, maxHeight: '85vh', overflowY: 'auto', position: 'relative', border: '1px solid rgba(20,184,166,0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', background: 'var(--bg-card)' }}>
+            <div style={{ position: 'sticky', top: -24, background: 'var(--bg-card)', padding: '24px 0 16px', margin: '-24px 0 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+              <div>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.3rem', fontFamily: 'Space Grotesk', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <Sparkles size={22} color="var(--accent-teal)" /> AI Generated Menu
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: 4 }}>Review suggestions below. Copy items you like into your editor.</p>
+              </div>
+              <button onClick={() => setAiPreview(null)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px' }}><X size={16}/> Close</button>
+            </div>
+            
+            <div style={{ display: 'grid', gap: 16 }}>
+              {aiPreview.map((dayData, i) => (
+                <div key={i} style={{ padding: 20, background: 'linear-gradient(to right, rgba(20,184,166,0.05), transparent)', borderRadius: 12, border: '1px solid var(--border)', borderLeft: '4px solid var(--accent-teal)' }}>
+                  <h4 style={{ color: 'var(--text-primary)', marginBottom: 16, fontSize: '1.1rem', fontWeight: 600 }}>{dayData.day}</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>🌅 Breakfast</div>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{dayData.breakfast?.join(', ')}</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent-teal)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>☀️ Lunch</div>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{dayData.lunch?.join(', ')}</div>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--accent-purple)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>🌙 Dinner</div>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{dayData.dinner?.join(', ')}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="page-header">
         <div><h1>Menu Management</h1><p>Create and edit the weekly meal plan</p></div>
-        <button className="btn btn-primary"><Plus size={15}/> Add Special Item</button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button className="btn btn-primary" onClick={() => setShowAiPrompt(true)} disabled={isGenerating}>
+            <Sparkles size={16}/> {isGenerating ? 'Generating Menu...' : 'Auto-Generate AI Menu'}
+          </button>
+        </div>
       </div>
 
       {/* Day selector */}

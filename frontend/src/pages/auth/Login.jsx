@@ -35,7 +35,7 @@ export default function Login() {
       await login(email, password)
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Invalid credentials or database connection failed.');
+      setError(typeof err === 'string' ? err : (err.response?.data?.message || 'Login failed'));
     } finally {
       setLoading(false)
     }
@@ -101,17 +101,6 @@ export default function Login() {
           ))}
         </div>
 
-        {/* Role hint */}
-        <div style={{
-          padding: '10px 14px', marginBottom: 16,
-          background: `${activeRole.color}10`,
-          border: `1px solid ${activeRole.color}30`,
-          borderRadius: 'var(--radius-md)',
-          fontSize: '0.78rem', color: activeRole.color,
-          textAlign: 'center'
-        }}>
-          {activeRole.hint}
-        </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

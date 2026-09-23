@@ -5,6 +5,8 @@ import api from '../../api'
 export default function Hostels() {
   const [hostels, setHostels] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState({ name: '', capacity: '', blocks: '', manager: '' })
 
   useEffect(() => {
     const fetchHostels = async () => {
@@ -19,11 +21,23 @@ export default function Hostels() {
     fetchHostels()
   }, [])
 
+  const handleAddHostel = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/hostels', form);
+      setHostels([...hostels, res.data]);
+      setShowModal(false);
+      setForm({ name: '', capacity: '', blocks: '', manager: '' });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   return (
     <div>
       <div className="page-header">
         <div><h1>Hostels Management</h1><p>Manage hostel buildings and capacities</p></div>
-        <button className="btn btn-primary"><Plus size={16}/> Add Hostel</button>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16}/> Add Hostel</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 24 }}>
@@ -66,6 +80,24 @@ export default function Hostels() {
           </div>
         ))}
       </div>
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: 400, maxWidth: '90%' }}>
+            <h3 style={{ marginBottom: 20 }}>Add Hostel</h3>
+            <form onSubmit={handleAddHostel} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <input type="text" placeholder="Name" className="input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+              <input type="number" placeholder="Capacity" className="input" value={form.capacity} onChange={e => setForm({...form, capacity: e.target.value})} required />
+              <input type="number" placeholder="Blocks" className="input" value={form.blocks} onChange={e => setForm({...form, blocks: e.target.value})} required />
+              <input type="text" placeholder="Manager ID (optional)" className="input" value={form.manager} onChange={e => setForm({...form, manager: e.target.value})} />
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 16 }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

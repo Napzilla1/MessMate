@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { Worker } = require('worker_threads');
-const path = require('path');
 const connectDB = require('./config/db');
 
 // Load env vars
@@ -14,9 +12,6 @@ connectDB();
 const http = require('http');
 const socketIo = require('socket.io');
 const Redis = require('ioredis');
-const { createAdapter } = require('@socket.io/redis-adapter');
-const createRateLimiter = require('./middleware/rateLimiter');
-const { enqueueChatMessage } = require('./queues/chatQueue');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,49 +19,35 @@ const io = socketIo(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-// ─── Redis Setup ────────────────────────────────────────────────
+// ─── Redis Setup (OTP Storage, Menu Caching, Rate Limiting) ─────
 const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+let redisClient = null;
 
-// Pub/Sub pair for Socket.io adapter
-const pubClient = new Redis(redisUrl);
-const subClient = pubClient.duplicate();
+const setupRedis = () => {
+  try {
+    const client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 1,
+      retryStrategy: () => null,
+    });
 
-// General-purpose Redis client for rate limiting, etc.
-const redisClient = new Redis(redisUrl);
+    client.on('connect', () => {
+      redisClient = client;
+      app.set('redisClient', client);
+      console.log('[Redis] Connected — OTP storage, menu caching, and rate limiting active');
+    });
 
-pubClient.on('connect', () => console.log('[Redis] Pub client connected'));
-subClient.on('connect', () => console.log('[Redis] Sub client connected'));
-redisClient.on('connect', () => console.log('[Redis] General client connected'));
-pubClient.on('error', (err) => console.error('[Redis] Pub client error:', err.message));
-subClient.on('error', (err) => console.error('[Redis] Sub client error:', err.message));
-redisClient.on('error', (err) => console.error('[Redis] General client error:', err.message));
-
-// ─── Socket.io Redis Adapter ───────────────────────────────────
-// Syncs all Socket.io rooms across multiple Node.js processes
-io.adapter(createAdapter(pubClient, subClient));
-console.log('[Socket.io] Redis adapter attached — multi-process ready');
-
-// ─── Rate Limiter ──────────────────────────────────────────────
-const { checkRateLimit, cleanup: cleanupRateLimit } = createRateLimiter(redisClient);
-
-// ─── Read Receipt Worker Thread ────────────────────────────────
-const readReceiptWorker = new Worker(
-  path.join(__dirname, 'workers', 'readReceiptWorker.js')
-);
-readReceiptWorker.postMessage({
-  type: 'init',
-  mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mess-management',
-});
-readReceiptWorker.on('message', (msg) => {
-  if (msg.type === 'ready') {
-    console.log('[ReadReceiptWorker] Connected and ready');
+    client.on('error', () => {
+      if (!redisClient) {
+        console.log('[Redis] Not available — running without Redis (OTP, caching, and rate limiting features will be unavailable)');
+      }
+    });
+  } catch (err) {
+    console.log('[Redis] Not available — running without Redis');
   }
-});
-readReceiptWorker.on('error', (err) => {
-  console.error('[ReadReceiptWorker] Error:', err.message);
-});
+};
+setupRedis();
 
-// ─── Socket.io Connection Handling ─────────────────────────────
+// ─── Socket.io Connection Handling (QR Attendance Only) ─────────
 app.set('io', io);
 
 io.on('connection', (socket) => {
@@ -77,71 +58,8 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} joined room: ${hostel}`);
   });
 
-  socket.on('send_message', async (data) => {
-    try {
-      const { hostel, senderId, senderName, senderRole, text } = data;
-
-      // ── Rate Limiting ──
-      const { allowed, retryAfter } = await checkRateLimit(socket.id);
-      if (!allowed) {
-        socket.emit('rate_limit', {
-          message: `Slow down! You can send again in ${retryAfter}s.`,
-          retryAfter,
-        });
-        return;
-      }
-
-      // ── Optimistic Broadcast ──
-      // Broadcast immediately so all users see the message in real-time
-      const optimisticMessage = {
-        hostel,
-        sender: senderId,
-        senderName,
-        senderRole,
-        text,
-        createdAt: new Date(),
-        _id: new require('mongoose').Types.ObjectId().toString(),
-      };
-      io.to(hostel).emit('receive_message', optimisticMessage);
-
-      // ── Async Persistence via BullMQ ──
-      await enqueueChatMessage({
-        hostel,
-        sender: senderId,
-        senderName,
-        senderRole,
-        text,
-      });
-
-    } catch (err) {
-      console.error('Error handling chat message:', err);
-    }
-  });
-
-  // ── Read Receipts ──
-  socket.on('mark_read', (data) => {
-    const { hostel, messageId, userId } = data;
-
-    // Forward to worker thread for batched DB writes
-    readReceiptWorker.postMessage({
-      type: 'mark_read',
-      hostel,
-      messageId,
-      userId,
-    });
-
-    // Broadcast read receipt immediately without waiting for DB
-    io.to(hostel).emit('read_receipt', {
-      messageId,
-      userId,
-      readAt: new Date(),
-    });
-  });
-
-  socket.on('disconnect', async () => {
+  socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Clean up rate limit data for this socket
-    await cleanupRateLimit(socket.id);
   });
 });
 
@@ -154,9 +72,11 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/waste', require('./routes/waste'));
+app.use('/api/reports', require('./routes/reports'));
 app.use('/api/hostels', require('./routes/hostels'));
-app.use('/api/ai', require('./routes/ai'));
-app.use('/api/chat', require('./routes/chat'));
+app.use('/api/forecast', require('./routes/forecast'));
+app.use('/api/gemini', require('./routes/gemini'));
+app.use('/api/announcements', require('./routes/announcements'));
 
 app.get('/', (req, res) => {
   res.send('Mess Management API is running...');

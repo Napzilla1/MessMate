@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, Megaphone } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import api from '../../api'
 
@@ -35,8 +35,8 @@ export default function StudentDashboard() {
   const [todayMenu, setTodayMenu] = useState({ breakfast: [], lunch: [], dinner: [] })
   const [weeklyData, setWeeklyData] = useState([])
   const [stats, setStats] = useState({ total: 0, rate: 0, skipped: 0, streak: 0 })
+  const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -90,19 +90,26 @@ export default function StudentDashboard() {
 
       // Fetch today's menu
       try {
-        const menuRes = await api.get('/menu')
+        const menuRes = await api.get('/menu/' + (user?.hostel || 'Limbdi Hostel'))
         if (menuRes.data && menuRes.data.length > 0) {
-          const menu = menuRes.data[0]
-          const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-          const dayMenu = menu.meals?.[dayName] || {}
+          const currentDay = new Date().toLocaleDateString('en-US', { weekday: 'short' })
+          const dayMenu = menuRes.data.find(m => m.day === currentDay) || {}
           setTodayMenu({
-            breakfast: dayMenu.breakfast ? dayMenu.breakfast.split(',').map(s => s.trim()) : ['No data'],
-            lunch: dayMenu.lunch ? dayMenu.lunch.split(',').map(s => s.trim()) : ['No data'],
-            dinner: dayMenu.dinner ? dayMenu.dinner.split(',').map(s => s.trim()) : ['No data'],
+            breakfast: dayMenu.breakfast?.items || [],
+            lunch: dayMenu.lunch?.items || [],
+            dinner: dayMenu.dinner?.items || [],
           })
         }
       } catch (err) {
         console.error('Failed to fetch menu', err)
+      }
+
+      // Fetch announcements
+      try {
+        const annRes = await api.get('/announcements/' + encodeURIComponent(user?.hostel || 'Limbdi Hostel'))
+        setAnnouncements(annRes.data)
+      } catch (err) {
+        console.error('Failed to fetch announcements', err)
       }
 
       setLoading(false)
@@ -110,22 +117,15 @@ export default function StudentDashboard() {
     fetchAll()
   }, [])
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }
-
   const toggleMeal = async (meal) => {
     const newVal = !attendance[meal]
     setAttendance(prev => ({ ...prev, [meal]: newVal }))
     try {
       const today = new Date().toISOString().split('T')[0]
       await api.post('/attendance/declare', { date: today, meal, status: newVal })
-      showToast(`${meal.charAt(0).toUpperCase() + meal.slice(1)} ${newVal ? 'declared ✓' : 'cancelled'}`)
     } catch (err) {
       console.error('Failed to save attendance', err)
       setAttendance(prev => ({ ...prev, [meal]: !newVal }))
-      showToast(`Failed to save: ${err.response?.data?.message || 'Backend not connected?'}`, 'error')
     }
   }
 
@@ -138,21 +138,6 @@ export default function StudentDashboard() {
 
   return (
     <div>
-      {/* Toast Notification */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 24, right: 24, zIndex: 9999,
-          padding: '14px 20px', borderRadius: 12,
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.95)' : 'rgba(20,184,166,0.95)',
-          color: '#fff', fontWeight: 600, fontSize: '0.9rem',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(8px)',
-          animation: 'slideIn 0.3s ease',
-          display: 'flex', alignItems: 'center', gap: 8
-        }}>
-          {toast.type === 'error' ? '❌' : '✅'} {toast.msg}
-        </div>
-      )}
       {/* Welcome Banner */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(20,184,166,0.12) 0%, rgba(139,92,246,0.08) 100%)',
@@ -322,6 +307,58 @@ export default function StudentDashboard() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Announcements */}
+      <div className="mb-24">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, padding: '0 4px' }}>
+          <h3 style={{ fontFamily: 'Space Grotesk', fontSize: '1.2rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ background: 'rgba(20,184,166,0.15)', padding: 6, borderRadius: 8 }}>
+              <Megaphone size={18} color="var(--accent-teal)" />
+            </div>
+            Hostel Noticeboard
+          </h3>
+          {announcements.length > 0 && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{announcements.length} Active Notices</span>
+          )}
+        </div>
+        
+        {announcements.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+            No new announcements from your manager.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+            {announcements.map((a, i) => (
+              <div key={a._id} style={{ 
+                padding: '20px', 
+                background: 'linear-gradient(to bottom right, var(--bg-card), rgba(20,184,166,0.03))', 
+                borderRadius: 'var(--radius-lg)', 
+                border: '1px solid var(--border)',
+                borderTop: '3px solid ' + (i === 0 ? 'var(--accent-teal)' : 'var(--border)'),
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <h4 style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-primary)', paddingRight: 10 }}>
+                    {a.title}
+                  </h4>
+                  {i === 0 && (
+                    <span style={{ background: 'rgba(20,184,166,0.15)', color: 'var(--accent-teal)', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 12, textTransform: 'uppercase' }}>
+                      New
+                    </span>
+                  )}
+                </div>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'pre-wrap', marginBottom: 16, lineHeight: 1.5 }}>
+                  {a.message}
+                </p>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-amber)' }} />
+                  {new Date(a.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

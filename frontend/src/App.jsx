@@ -1,13 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import api from './api'
-import { AuthContext } from './context/AuthContext'
+import { useEffect } from 'react'
 
 // Auth
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
-import ResetPassword from './pages/auth/ResetPassword'
 
 // Layouts
 import StudentLayout from './layouts/StudentLayout'
@@ -29,7 +26,8 @@ import QRScanner from './pages/manager/QRScanner'
 import AttendanceMonitor from './pages/manager/AttendanceMonitor'
 import WasteLog from './pages/manager/WasteLog'
 import Reports from './pages/manager/Reports'
-import AIInsights from './pages/manager/AIInsights'
+import Forecasting from './pages/manager/Forecasting'
+import Announcements from './pages/manager/Announcements'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -39,66 +37,33 @@ import Analytics from './pages/admin/Analytics'
 import Settings from './pages/admin/Settings'
 import Staff from './pages/admin/Staff'
 
-// Components
-import LiveChat from './components/LiveChat'
 
 
+
+import { useSelector, useDispatch } from 'react-redux'
+import { initAuthFromStorage, fetchProfileThunk } from './store/authSlice'
 
 export default function App() {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const dispatch = useDispatch()
+  const { user, loading } = useSelector(state => state.auth)
 
   useEffect(() => {
-    // Decode user directly from JWT stored in localStorage
-    // This means refresh NEVER logs the user out, even if backend is slow
+    // 1. Initialize auth from localStorage sync
+    dispatch(initAuthFromStorage())
+    
+    // 2. If token exists and not expired, fetch fresh profile from backend
     const token = localStorage.getItem('token')
     if (token) {
       try {
-        // JWT payload is base64 encoded in the middle segment
         const payload = JSON.parse(atob(token.split('.')[1]))
-        // Check token hasn't expired
         if (payload.exp * 1000 > Date.now()) {
-          // Fetch fresh profile from backend (non-blocking)
-          api.get('/auth/profile')
-            .then(res => setUser(res.data))
-            .catch(() => {
-              // Backend unreachable — use cached token data so user stays logged in
-              // The token payload only has { id } so use stored user data
-              const stored = localStorage.getItem('user')
-              if (stored) setUser(JSON.parse(stored))
-            })
-        } else {
-          // Token expired — log out
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
+          dispatch(fetchProfileThunk())
         }
       } catch (e) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
+        // invalid token format
       }
     }
-    setLoading(false)
-  }, [])
-
-  const login = async (email, password) => {
-    const res = await api.post('/auth/login', { email, password })
-    localStorage.setItem('token', res.data.token)
-    localStorage.setItem('user', JSON.stringify(res.data))
-    setUser(res.data)
-  }
-
-  const register = async (userData) => {
-    const res = await api.post('/auth/register', userData)
-    localStorage.setItem('token', res.data.token)
-    localStorage.setItem('user', JSON.stringify(res.data))
-    setUser(res.data)
-  }
-
-  const logout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-  }
+  }, [dispatch])
 
   if (loading) return <div style={{display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-secondary)'}}>Loading...</div>;
 
@@ -110,7 +75,7 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register }}>
+    <>
       <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
         <div className="gradient-orb orb-1" />
         <div className="gradient-orb orb-2" />
@@ -120,7 +85,6 @@ export default function App() {
         <Route path="/login" element={!user ? <Login /> : <Navigate to={getDefaultRoute()} />} />
         <Route path="/register" element={!user ? <Register /> : <Navigate to={getDefaultRoute()} />} />
         <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to={getDefaultRoute()} />} />
-        <Route path="/reset-password/:token" element={!user ? <ResetPassword /> : <Navigate to={getDefaultRoute()} />} />
 
         {/* Student */}
         <Route path="/student" element={user?.role === 'student' ? <StudentLayout /> : <Navigate to="/login" />}>
@@ -141,7 +105,8 @@ export default function App() {
           <Route path="attendance" element={<AttendanceMonitor />} />
           <Route path="waste" element={<WasteLog />} />
           <Route path="reports" element={<Reports />} />
-          <Route path="ai" element={<AIInsights />} />
+          <Route path="forecast" element={<Forecasting />} />
+          <Route path="announcements" element={<Announcements />} />
           <Route index element={<Navigate to="dashboard" />} />
         </Route>
 
@@ -159,7 +124,7 @@ export default function App() {
         {/* Default */}
         <Route path="*" element={<Navigate to={user ? getDefaultRoute() : '/login'} />} />
       </Routes>
-      <LiveChat />
-    </AuthContext.Provider>
+    </>
   )
 }
+

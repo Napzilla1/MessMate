@@ -14,10 +14,10 @@ const forecastData = [
 ]
 
 const INITIAL_MESSAGES = [
-  { role: 'ai', text: 'Hello! I\'m your AI Mess Assistant 🤖 I can help you analyze attendance patterns, predict food waste, and optimize meal preparation based on your live database! Try asking "What is the forecast for tomorrow?" or "Show me recent waste analysis".' },
+  { role: 'ai', text: 'Hello! I\'m your Analytics Assistant 🤖 I can help you analyze attendance patterns, predict food waste, and optimize meal preparation based on your live database! Try asking "What is the forecast for tomorrow?" or "Show me recent waste analysis".' },
 ]
 
-export default function AIInsights() {
+export default function Forecasting() {
   const [messages, setMessages] = useState(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -31,7 +31,7 @@ export default function AIInsights() {
     setLoading(true)
     
     try {
-      const res = await api.post('/ai/chat', { message: prompt })
+      const res = await api.post('/forecast/chat', { message: prompt })
       setMessages(m => [...m, { role: 'ai', text: res.data.text }])
     } catch (err) {
       setMessages(m => [...m, { role: 'ai', text: 'Sorry, I am having trouble connecting to the database right now.' }])
@@ -57,7 +57,7 @@ export default function AIInsights() {
   return (
     <div>
       <div className="page-header">
-        <div><h1>AI Insights</h1><p>Smart forecasting, recommendations, and analytics</p></div>
+        <div><h1>Forecasting & Analytics</h1><p>Data-driven forecasting and waste analytics</p></div>
         <span className="badge badge-purple"><Brain size={12}/> Powered by AI</span>
       </div>
 
@@ -187,3 +187,5 @@ export default function AIInsights() {
     </div>
   )
 }
+
+

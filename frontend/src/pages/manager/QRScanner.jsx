@@ -3,6 +3,7 @@ import { ScanLine, CheckCircle2, XCircle, User, Clock, AlertTriangle } from 'luc
 import api from '../../api'
 import { io } from 'socket.io-client'
 import { useAuth } from '../../context/AuthContext'
+import { Scanner } from '@yudiel/react-qr-scanner'
 
 const SCANNED_MOCK = [
   { id: 'STU032', name: 'Priya Patel', meal: 'Lunch', time: '12:41 PM', status: 'success', hostel: 'Block A' },
@@ -18,6 +19,7 @@ export default function QRScanner() {
   const [scanning, setScanning] = useState(false)
   const [lastScan, setLastScan] = useState(null)
   const [manualToken, setManualToken] = useState('')
+  const [cameraError, setCameraError] = useState(null)
 
   const MEAL_COLORS = { breakfast: 'var(--accent-amber)', lunch: 'var(--accent-teal)', dinner: 'var(--accent-purple)' }
 
@@ -48,13 +50,14 @@ export default function QRScanner() {
     return () => socket.disconnect()
   }, [user])
 
-  const handleScan = async (e) => {
+  const handleScan = async (e, overrideToken) => {
     e?.preventDefault()
-    if (!manualToken.trim()) return
+    const tokenToScan = overrideToken || manualToken
+    if (!tokenToScan.trim()) return
     setScanning(true)
     
     try {
-      const res = await api.post('/attendance/scan', { token: manualToken })
+      const res = await api.post('/attendance/scan', { token: tokenToScan })
       const newScan = {
         name: res.data.studentName,
         meal: activeMeal.charAt(0).toUpperCase() + activeMeal.slice(1),
@@ -106,37 +109,48 @@ export default function QRScanner() {
           </div>
 
           {/* Scanner display */}
-          <div className="card" style={{ textAlign: 'center', padding: '40px 24px' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '20px 24px' }}>
             <div style={{
-              width: 180, height: 180, margin: '0 auto 24px',
-              border: `3px solid ${scanning ? 'var(--accent-teal)' : 'var(--border)'}`,
+              width: 250, height: 250, margin: '0 auto 24px',
               borderRadius: 'var(--radius-xl)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: scanning ? 'rgba(20,184,166,0.05)' : 'var(--bg-glass)',
-              transition: 'all 0.3s',
-              position: 'relative', overflow: 'hidden',
+              overflow: 'hidden',
+              position: 'relative',
+              background: 'var(--bg-app)',
+              border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {scanning ? (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(20,184,166,0.2)', borderTopColor: 'var(--accent-teal)', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                  <div style={{ fontSize: '0.8rem', color: 'var(--accent-teal)' }}>Scanning...</div>
-                </div>
+              {!cameraError ? (
+                <Scanner 
+                  onScan={(result) => {
+                    if (scanning) return;
+                    const token = Array.isArray(result) ? result[0].rawValue : result;
+                    if (token) {
+                      setManualToken(token);
+                      handleScan(null, token);
+                    }
+                  }}
+                  onError={(error) => {
+                    console.error("Camera Error:", error);
+                    let errMsg = error?.message || "Unknown camera error";
+                    if (errMsg.includes('NotAllowedError') || errMsg.includes('Permission denied')) {
+                      errMsg = "Camera permission denied. Please allow camera access in your browser settings.";
+                    } else if (errMsg.includes('NotFoundError') || errMsg.includes('Requested device not found')) {
+                      errMsg = "No camera found on this device.";
+                    } else if (!window.isSecureContext) {
+                      errMsg = "Camera requires HTTPS or localhost to run.";
+                    }
+                    setCameraError(errMsg);
+                  }}
+                  styles={{ container: { width: '100%', height: '100%' } }}
+                />
               ) : (
-                <ScanLine size={60} style={{ color: 'var(--text-muted)' }} />
+                <div style={{ padding: 20, textAlign: 'center' }}>
+                  <AlertTriangle size={32} color="var(--accent-amber)" style={{ marginBottom: 12 }} />
+                  <p style={{ color: 'var(--accent-amber)', fontSize: '0.85rem', fontWeight: 600 }}>Camera Error</p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: 4 }}>{cameraError}</p>
+                  <button onClick={() => setCameraError(null)} className="btn btn-secondary btn-sm" style={{ marginTop: 12, margin: '12px auto 0' }}>Try Again</button>
+                </div>
               )}
-              {/* Corner indicators */}
-              {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map((pos) => (
-                <div key={pos} style={{
-                  position: 'absolute',
-                  width: 20, height: 20,
-                  ...(pos.includes('top') ? { top: 12 } : { bottom: 12 }),
-                  ...(pos.includes('left') ? { left: 12 } : { right: 12 }),
-                  borderTop: pos.includes('top') ? `3px solid ${MEAL_COLORS[activeMeal]}` : 'none',
-                  borderBottom: pos.includes('bottom') ? `3px solid ${MEAL_COLORS[activeMeal]}` : 'none',
-                  borderLeft: pos.includes('left') ? `3px solid ${MEAL_COLORS[activeMeal]}` : 'none',
-                  borderRight: pos.includes('right') ? `3px solid ${MEAL_COLORS[activeMeal]}` : 'none',
-                }} />
-              ))}
             </div>
 
             {lastScan && (

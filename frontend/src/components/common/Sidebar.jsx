@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import {
   LayoutDashboard, UtensilsCrossed, CalendarCheck, QrCode,
   History, User, LogOut, ChefHat, ScanLine, Users, BarChart3,
-  FileText, Sparkles, Building2, Settings, UserCog, Trash2
+  FileText, Sparkles, Building2, Settings, UserCog, Trash2, Megaphone
 } from 'lucide-react'
 
 const NAV_ITEMS = {
@@ -28,8 +28,9 @@ const NAV_ITEMS = {
     ]},
     { section: 'Management', items: [
       { to: '/manager/menu', icon: ChefHat, label: 'Manage Menu' },
+      { to: '/manager/announcements', icon: Megaphone, label: 'Announcements' },
       { to: '/manager/reports', icon: FileText, label: 'Reports' },
-      { to: '/manager/ai', icon: Sparkles, label: 'AI Insights' },
+      { to: '/manager/forecast', icon: Sparkles, label: 'Forecasting' },
     ]},
   ],
   admin: [
@@ -107,3 +108,5 @@ export default function Sidebar() {
     </aside>
   )
 }
+
+

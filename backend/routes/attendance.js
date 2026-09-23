@@ -92,6 +92,19 @@ router.post('/scan', protect, manager, async (req, res) => {
         date,
         [meal]: { declared: false, checkedIn: true, checkInTime: new Date() }
       });
+
+      // Emit socket event even for undeclared students
+      const io = req.app.get('io');
+      if (io) {
+        io.to(hostel).emit('scan_success', {
+          studentId,
+          studentName: name,
+          meal,
+          status: 'success',
+          time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        });
+      }
+
       return res.json({ message: 'Check-in successful (No prior declaration)', studentName: name, status: 'success' });
     }
     

@@ -1,17 +1,55 @@
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { Save, Bell, Shield, User } from 'lucide-react'
+import { Save, Bell, Shield, User, X } from 'lucide-react'
+import api from '../../api'
 
 export default function StudentProfile() {
   const { user } = useAuth()
-  const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', hostel: user?.hostel || '', room: user?.room || '', phone: '+91 9876543210' })
-  const [notif, setNotif] = useState({ email: true, push: true, cutoffReminder: true, menuUpdate: false, weeklyReport: true })
+  const [form, setForm] = useState({ name: user?.name || '', email: user?.email || '', hostel: user?.hostel || '', room: user?.room || '', phone: user?.phone || '+91 9876543210' })
   const [saved, setSaved] = useState(false)
+  const [showOtp, setShowOtp] = useState(false)
+  const [otp, setOtp] = useState('')
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  const handleSave = async () => {
+    try {
+      const res = await api.put('/auth/profile', form);
+      if (res.data.requiresOtp) {
+        setShowOtp(true);
+      } else {
+        setSaved(true); 
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error saving profile');
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    try {
+      await api.put('/auth/profile/verify', { otp });
+      setShowOtp(false);
+      setSaved(true); 
+      setTimeout(() => setSaved(false), 2000);
+      window.location.reload(); // Reload to fetch fresh user data
+    } catch (err) {
+      alert(err.response?.data?.message || 'Invalid OTP');
+    }
+  }
 
   return (
     <div>
+      {/* OTP Modal */}
+      {showOtp && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ width: 400, position: 'relative' }}>
+            <button onClick={() => setShowOtp(false)} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={20}/></button>
+            <h3 style={{ marginBottom: 10 }}>Verify Identity</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: '0.9rem' }}>We sent an OTP to your current email to authorize these sensitive changes.</p>
+            <input type="text" className="form-input" placeholder="Enter 6-digit OTP" value={otp} onChange={e => setOtp(e.target.value)} style={{ marginBottom: 15, textAlign: 'center', letterSpacing: 5, fontSize: '1.2rem' }} />
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleVerifyOtp}>Verify & Save</button>
+          </div>
+        </div>
+      )}
       <div className="page-header"><div><h1>My Profile</h1><p>Manage your account and preferences</p></div></div>
 
       <div className="grid-2">
@@ -52,26 +90,6 @@ export default function StudentProfile() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Notifications */}
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <Bell size={18} style={{ color: 'var(--accent-teal)' }} />
-              <h3 style={{ fontFamily: 'Space Grotesk', fontWeight: 600 }}>Notification Preferences</h3>
-            </div>
-            {[['email', 'Email Notifications', 'Receive meal reminders via email'], ['push', 'Push Notifications', 'Browser & mobile push alerts'], ['cutoffReminder', 'Cutoff Reminders', '30 min before attendance cutoff'], ['menuUpdate', 'Menu Updates', 'When the menu is changed'], ['weeklyReport', 'Weekly Report', 'Summary every Sunday']].map(([key, label, desc]) => (
-              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{label}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{desc}</div>
-                </div>
-                <label className="toggle">
-                  <input type="checkbox" checked={notif[key]} onChange={e => setNotif({ ...notif, [key]: e.target.checked })} />
-                  <span className="toggle-slider" />
-                </label>
-              </div>
-            ))}
-          </div>
-
           {/* Security */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>

@@ -1,27 +1,27 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const User = require('./models/User');
-require('dotenv').config();
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+const User = require("./models/User");
+require("dotenv").config();
 
 const seedUsers = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log('Connected to MongoDB');
+    console.log("Connected to MongoDB");
 
     const users = [
       {
-        name: 'Manager Ramesh',
-        email: 'manager@iitbhu.ac.in',
-        password: 'password123',
-        role: 'manager',
-        hostel: 'Limbdi Hostel'
+        name: "Manager Ramesh",
+        email: "manager@iitbhu.ac.in",
+        password: "password123",
+        role: "manager",
+        hostel: "Limbdi Hostel",
       },
       {
-        name: 'Admin Priya',
-        email: 'admin@iitbhu.ac.in',
-        password: 'password123',
-        role: 'admin'
-      }
+        name: "Admin Priya",
+        email: "admin@iitbhu.ac.in",
+        password: "password123",
+        role: "admin",
+      },
     ];
 
     for (const u of users) {
@@ -35,10 +35,10 @@ const seedUsers = async () => {
       }
     }
 
-    console.log('Seeding complete.');
+    console.log("Seeding complete.");
     process.exit(0);
   } catch (error) {
-    console.error('Error seeding data:', error);
+    console.error("Error seeding data:", error);
     process.exit(1);
   }
 };

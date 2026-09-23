@@ -4,6 +4,7 @@ import api from '../../api'
 
 export default function Students() {
   const [students, setStudents] = useState([])
+  const [search, setSearch] = useState('')
   
   useEffect(() => {
     const fetchUsers = async () => {
@@ -15,13 +16,42 @@ export default function Students() {
     fetchUsers()
   }, [])
 
+  const filteredStudents = students.filter(s => 
+    s.name.toLowerCase().includes(search.toLowerCase()) || 
+    (s.rollNo && s.rollNo.toLowerCase().includes(search.toLowerCase())) ||
+    s.email.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleExportCSV = () => {
+    const headers = ['Name', 'Email', 'Roll No', 'Hostel', 'Room'];
+    const rows = filteredStudents.map(s => [
+      `"${s.name}"`,
+      `"${s.email}"`,
+      `"${s.rollNo || ''}"`,
+      `"${s.hostel || ''}"`,
+      `"${s.room || ''}"`
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(',') + '\n' 
+      + rows.map(e => e.join(',')).join('\n');
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'students_directory.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div>
       <div className="page-header">
         <div><h1>Students Directory</h1><p>Manage all registered students</p></div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button className="btn btn-secondary"><Filter size={16}/> Filter</button>
-          <button className="btn btn-primary"><Download size={16}/> Export CSV</button>
+          <button className="btn btn-secondary" onClick={() => alert('Advanced filters coming soon!')}><Filter size={16}/> Filter</button>
+          <button className="btn btn-primary" onClick={handleExportCSV}><Download size={16}/> Export CSV</button>
         </div>
       </div>
 
@@ -29,7 +59,14 @@ export default function Students() {
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 16 }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: 400 }}>
             <Search size={16} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input type="text" className="form-input" placeholder="Search by name, roll no, or email..." style={{ paddingLeft: 44, background: 'var(--bg-app)' }} />
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Search by name, roll no, or email..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: 44, background: 'var(--bg-app)' }} 
+            />
           </div>
         </div>
 
@@ -44,7 +81,7 @@ export default function Students() {
             </tr>
           </thead>
           <tbody>
-            {students.map(s => (
+            {filteredStudents.map(s => (
               <tr key={s._id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -63,7 +100,7 @@ export default function Students() {
                 </td>
               </tr>
             ))}
-            {students.length === 0 && (
+            {filteredStudents.length === 0 && (
               <tr><td colSpan="5" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>No students found</td></tr>
             )}
           </tbody>

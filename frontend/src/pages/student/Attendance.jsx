@@ -33,7 +33,6 @@ export default function Attendance() {
   })
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState(null)
 
   useEffect(() => {
     const fetchAttendance = async () => {
@@ -66,11 +65,6 @@ export default function Attendance() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }
-
   const toggle = (dayIdx, meal) => {
     setAttendance(a => ({ ...a, [dayIdx]: { ...a[dayIdx], [meal]: !a[dayIdx][meal] } }))
     setSaved(false)
@@ -87,16 +81,21 @@ export default function Attendance() {
             date: d,
             meal: meal,
             status: attendance[i][meal]
-          }))
+          }).catch(err => ({ failed: true, error: err })))
         }
       }
-      await Promise.all(promises)
-      setSaved(true)
-      showToast('Attendance saved for all 7 days!')
-      setTimeout(() => setSaved(false), 2500)
+      const results = await Promise.all(promises)
+      const failures = results.filter(r => r && r.failed)
+      
+      if (failures.length === 0) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      } else if (failures.length < results.length) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+      }
     } catch (error) {
       console.error("Failed to save attendance", error)
-      showToast('Failed to save attendance', 'error')
     }
   }
 
@@ -104,22 +103,6 @@ export default function Attendance() {
 
   return (
     <div>
-      {/* Toast Notification */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 24, right: 24, zIndex: 9999,
-          padding: '14px 20px', borderRadius: 12,
-          background: toast.type === 'error' ? 'rgba(239,68,68,0.95)' : 'rgba(20,184,166,0.95)',
-          color: '#fff', fontWeight: 600, fontSize: '0.9rem',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-          backdropFilter: 'blur(8px)',
-          animation: 'slideIn 0.3s ease',
-          display: 'flex', alignItems: 'center', gap: 8
-        }}>
-          {toast.type === 'error' ? '❌' : '✅'} {toast.msg}
-        </div>
-      )}
-
       <div className="page-header">
         <div>
           <h1>Mark Attendance</h1>
